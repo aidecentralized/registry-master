@@ -12,8 +12,7 @@ A distributed agent registry service that acts as the entry point for finding an
 ## API Endpoints
 
 ### Public (Read)
-- `GET /v1/index/search?q=<term>` - Search agents by capability/name (legacy)
-- `POST /v1/index/search` - Structured search with key-value queries
+- `GET /v1/index/search?searchparam=<json>` - Search agents using structured key-value pairs
 - `GET /v1/agents/resolve?agent_name=<urn>` - Resolve agent URN to address
 - `GET /healthz` - Health check
 
@@ -57,22 +56,24 @@ A distributed agent registry service that acts as the entry point for finding an
 }
 ```
 
-### Structured Search Query Format
+### Search Keys (MongoDB Fields)
+- Multiple fields are combined with AND logic.
+- Provide the fields which are required only. 
 ```json
 {
-  "name": "string",        // Search by agent_name (partial match, case-insensitive)
-  "agent-id": "string",    // Search by agent_id (exact match)
-  "tags": "string",        // Search within tags array (partial match, case-insensitive)
-  "publisher": "string"    // Search by publisher (exact match)
+  "agent_name": "string",   // Search by agent name (partial match, case-insensitive)
+  "agent_id": "string",     // Search by agent ID (exact match)
+  "tags": "string",         // Search within tags array (partial match, case-insensitive)
+  "publisher": "string"     // Search by publisher (exact match)
 }
 ```
 
-**Search Logic:**
-- **name**: Partial match with regex, case-insensitive (e.g., "urn:" matches all URNs)
-- **agent-id**: Exact match (e.g., "nanda:uuid-1111")
+**Valid Search Keys:**
+- **agent_name**: Partial match with regex, case-insensitive (e.g., "urn:agent:nanda" matches agents with that prefix)
+- **agent_id**: Exact match (e.g., "nanda:uuid-1111")
 - **tags**: Partial match within tags array (e.g., "tax" matches "tax.calculate")
 - **publisher**: Exact match (e.g., "nanda")
-- Multiple fields are combined with AND logic
+ 
 
 ## Quick Start
 
@@ -172,37 +173,22 @@ For production deployment across 12 regions:
 
 ### Search for agents
 
-**Legacy search (GET):**
-```bash
-curl "http://localhost:8000/v1/index/search?q=tax&limit=5"
-```
-
-**Structured search (POST):**
+**Structured search using MongoDB field names:**
 ```bash
 # Search by agent name
-curl -X POST "http://localhost:8000/v1/index/search" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "urn:agent:nanda"}'
+curl "http://localhost:8000/v1/index/search?searchparam={\"agent_name\":\"urn:agent:nanda\"}"
 
 # Search by agent ID
-curl -X POST "http://localhost:8000/v1/index/search" \
-  -H "Content-Type: application/json" \
-  -d '{"agent-id": "nanda:uuid-1111"}'
+curl "http://localhost:8000/v1/index/search?searchparam={\"agent_id\":\"nanda:uuid-1111\"}"
 
 # Search by capability tags
-curl -X POST "http://localhost:8000/v1/index/search" \
-  -H "Content-Type: application/json" \
-  -d '{"tags": "tax.calculate"}'
+curl "http://localhost:8000/v1/index/search?searchparam={\"tags\":\"tax.calculate\"}"
 
 # Search by publisher
-curl -X POST "http://localhost:8000/v1/index/search" \
-  -H "Content-Type: application/json" \
-  -d '{"publisher": "nanda"}'
+curl "http://localhost:8000/v1/index/search?searchparam={\"publisher\":\"nanda\"}"
 
-# Combined structured search
-curl -X POST "http://localhost:8000/v1/index/search?limit=5" \
-  -H "Content-Type: application/json" \
-  -d '{"publisher": "nanda", "tags": "tax"}'
+# Combined search with limit
+curl "http://localhost:8000/v1/index/search?searchparam={\"publisher\":\"nanda\",\"tags\":\"tax\"}&limit=5"
 ```
 
 ### Resolve agent
