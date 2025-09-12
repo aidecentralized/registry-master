@@ -155,7 +155,7 @@ async def health_check(db_instance: RegistryDatabase = Depends(get_database)):
 
 @app.get("/v1/index/search", response_model=SearchResponse)
 async def search_agents(
-    searchparam: str = Query(..., description="JSON object with search key-value pairs, e.g. '{\"name\":\"urn:\"}' or '{\"agent-id\":\"1111\"}'"),
+    searchparam: str = Query(..., description="JSON object with search key-value pairs, e.g. '{\"agent_name\":\"urn:\"}' or '{\"agent_id\":\"1111\"}' or '{\"tags\":\"tax\"}'"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
     db_instance: RegistryDatabase = Depends(get_database)
 ):
