@@ -1,0 +1,88 @@
+version: '3.3'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: registry-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: registry_master
+    networks:
+      - registry-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/registry_master --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: registry-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - registry-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  registry-service:
+    build: .
+    container_name: registry-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/registry_master?authSource=admin
+      MONGODB_DATABASE: registry_master
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret-token}
+      PORT: 8000
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - registry-network
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional: Database initialization service
+  db-init:
+    build: .
+    container_name: registry-db-init
+    environment:
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/registry_master?authSource=admin
+      MONGODB_DATABASE: registry_master
+      SEED_DATA: "true"
+    command: ["python", "init_db.py", "--seed"]
+    depends_on:
+      - mongodb
+    networks:
+      - registry-network
+    restart: "no"
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  registry-network:
+    driver: bridge
