@@ -152,15 +152,49 @@ curl -H "Authorization: Bearer your-secure-token" \
   -d '{"agent_id": "test:123", ...}'
 ```
 
-## Global Deployment
+## Multi-VM Replica Set Deployment
 
-For production deployment across 12 regions:
+### Deploy on Each VM
+Deploy the same setup on all VMs (no configuration changes needed):
+```bash
+# On each VM (VM1, VM2, VM3, etc.)
+git clone <repository>
+cd register-master
 
-1. **Provision infrastructure** with Terraform
-2. **Deploy stack** with Ansible/Docker Compose per region
-3. **Configure MongoDB replica set** across regions
-4. **Setup Route 53** latency-based routing
-5. **Bootstrap data** via admin APIs
+# Start MongoDB and Redis
+docker-compose up -d
+```
+
+### Initialize Replica Set
+SSH into any one VM and initialize the replica set:
+```bash
+# For 3 VMs
+./replica-init.sh 10.0.1.10:27017 10.0.1.11:27017 10.0.1.12:27017
+
+# For 2 VMs  
+./replica-init.sh 10.0.1.10:27017 10.0.1.11:27017
+```
+
+### Start API Service (Optional)
+On VMs where you want the API service running:
+```bash
+# Update .env with replica set connection string
+MONGODB_URI=mongodb://admin:password@10.0.1.10:27017,10.0.1.11:27017/registry_master?replicaSet=rs0&authSource=admin
+
+# Start API service
+docker-compose --profile api up -d registry-service
+```
+
+### Initialize Database (Optional)
+After replica set is ready:
+```bash
+docker-compose --profile init up db-init
+```
+
+### Service Profiles
+- **Default**: `docker-compose up -d` → MongoDB + Redis only
+- **API**: `--profile api` → Adds registry-service  
+- **Init**: `--profile init` → Runs database initialization
 
 ## Monitoring
 

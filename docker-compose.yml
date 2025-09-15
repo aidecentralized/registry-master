@@ -1,6 +1,7 @@
 version: '3.3'
 
 services:
+  # MongoDB Instance (will be part of replica set)
   mongodb:
     image: mongo:7.0
     container_name: registry-mongodb
@@ -10,17 +11,20 @@ services:
     volumes:
       - mongodb_data:/data/db
       - ./mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+      - ./mongodb-keyfile:/opt/keyfile/mongodb-keyfile:ro
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password
-      MONGO_INITDB_DATABASE: registry_master
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-registry_master}
+    command: ["--replSet", "${REPLICA_SET_NAME:-rs0}", "--bind_ip_all", "--port", "27017", "--keyFile", "/opt/keyfile/mongodb-keyfile"]
     networks:
       - registry-network
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/registry_master --quiet
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/${MONGO_DATABASE:-registry_master} --quiet
       interval: 30s
       timeout: 10s
       retries: 5
+
 
   redis:
     image: redis:7-alpine
@@ -45,8 +49,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/registry_master?authSource=admin
-      MONGODB_DATABASE: registry_master
+      MONGODB_URI: ${MONGODB_URI}
+      MONGODB_DATABASE: ${MONGO_DATABASE:-registry_master}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret-token}
       PORT: 8000
     depends_on:
@@ -62,13 +66,13 @@ services:
       timeout: 10s
       retries: 3
 
-  # Optional: Database initialization service
+  # Optional: Database initialization service (run manually after replica set is ready)
   db-init:
     build: .
     container_name: registry-db-init
     environment:
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/registry_master?authSource=admin
-      MONGODB_DATABASE: registry_master
+      MONGODB_URI: ${MONGODB_URI}
+      MONGODB_DATABASE: ${MONGO_DATABASE:-registry_master}
       SEED_DATA: "true"
     command: ["python", "init_db.py", "--seed"]
     depends_on:
