@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from enum import Enum
 
@@ -80,3 +80,36 @@ class StructuredSearchQuery(BaseModel):
     
     class Config:
         populate_by_name = True
+
+
+class PaginatedAgentsResponse(BaseModel):
+    """Response model for paginated agents list"""
+    agents: List[Dict[str, Any]]
+    total_count: int = Field(description="Total number of agents matching criteria")
+    limit: int = Field(description="Maximum items per page")
+    offset: int = Field(description="Current page offset")
+    has_next: bool = Field(description="Whether more pages are available")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "agents": [
+                    {
+                        "type": "direct",
+                        "agent_id": "nanda:uuid-1111",
+                        "agent_name": "urn:agent:nanda:TaxBot",
+                        "facts_url": "https://nanda.com/.well-known/agent-facts/1111",
+                        "resolver_url": "https://resolver.nanda.com/dispatch",
+                        "tags": ["tax.calculate", "finance.reports"],
+                        "publisher": "nanda",
+                        "ttl": 3600,
+                        "created_at": "2025-09-11T12:00:00Z",
+                        "last_updated": "2025-09-11T12:00:00Z"
+                    }
+                ],
+                "total_count": 150,
+                "limit": 50,
+                "offset": 0,
+                "has_next": True
+            }
+        }

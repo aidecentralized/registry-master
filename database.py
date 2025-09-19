@@ -266,6 +266,73 @@ class RegistryDatabase:
             logger.error(f"Failed to revoke agent {agent_id}: {e}")
             return False
     
+    def get_all_agents(self, entry_type: Optional[str] = None, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+        """Get all agents with pagination support"""
+        try:
+            # Build match condition
+            match_condition = {}
+            if entry_type and entry_type != "all":
+                if entry_type in ["direct", "federated"]:
+                    match_condition["type"] = entry_type
+                else:
+                    raise ValueError(f"Invalid entry_type: {entry_type}. Must be 'direct', 'federated', or 'all'")
+            
+            # Get total count
+            total_count = self._collection.count_documents(match_condition)
+            
+            # Build aggregation pipeline
+            pipeline = [
+                {"$match": match_condition},
+                {"$sort": {"last_updated": -1}},  # Most recently updated first
+                {"$skip": offset},
+                {"$limit": limit},
+                {
+                    "$project": {
+                        "_id": 0,  # Exclude ObjectId to avoid serialization issues
+                        "type": 1,
+                        "agent_id": 1,
+                        "agent_name": 1,
+                        "facts_url": 1,
+                        "resolver_url": 1,
+                        "tags": 1,
+                        "publisher": 1,
+                        "namespace": 1,
+                        "sub_index_url": 1,
+                        "registry_id": 1,
+                        "ttl": 1,
+                        "created_at": 1,
+                        "last_updated": 1
+                    }
+                }
+            ]
+            
+            # Execute query
+            agents = list(self._collection.aggregate(pipeline))
+            
+            # Calculate pagination metadata
+            has_next = (offset + limit) < total_count
+            
+            logger.info(f"Retrieved {len(agents)} agents (offset: {offset}, limit: {limit}, total: {total_count})")
+            
+            return {
+                "agents": agents,
+                "total_count": total_count,
+                "limit": limit,
+                "offset": offset,
+                "has_next": has_next
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get all agents: {e}")
+            return {
+                "agents": [],
+                "total_count": 0,
+                "limit": limit,
+                "offset": offset,
+                "has_next": False,
+                "error": str(e)
+            }
+
     def get_health_status(self) -> Dict[str, Any]:
         """Get database health status"""
         try:
