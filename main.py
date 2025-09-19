@@ -15,7 +15,8 @@ from pydantic import BaseModel
 from database import RegistryDatabase
 from models import (
     DirectAgentEntry, FederatedNamespaceEntry, 
-    AgentSearchResult, AgentResolutionResult, StructuredSearchQuery, EntryType
+    AgentSearchResult, AgentResolutionResult, StructuredSearchQuery, EntryType,
+    PaginatedAgentsResponse
 )
 
 # Configure logging
@@ -242,6 +243,42 @@ async def resolve_agent(
         )
 
 
+@app.get("/v1/agents/list", response_model=PaginatedAgentsResponse)
+async def list_agents(
+    type: Optional[str] = Query(None, description="Filter by entry type: 'direct', 'federated', or 'all'"),
+    limit: int = Query(50, ge=1, le=500, description="Maximum number of agents per page"),
+    offset: int = Query(0, ge=0, description="Number of agents to skip for pagination"),
+    db_instance: RegistryDatabase = Depends(get_database)
+):
+    """List all agents with pagination support"""
+    try:
+        # Validate type parameter
+        if type and type not in ["direct", "federated", "all"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid type parameter. Must be 'direct', 'federated', or 'all'"
+            )
+        
+        result = db_instance.get_all_agents(entry_type=type, limit=limit, offset=offset)
+        
+        if "error" in result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to retrieve agents: {result['error']}"
+            )
+        
+        return PaginatedAgentsResponse(**result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"List agents failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list agents"
+        )
+
+
 # Admin API Endpoints (require authentication)
 
 @app.post("/v1/admin/agent", status_code=status.HTTP_201_CREATED)
@@ -380,6 +417,7 @@ async def root():
             "health": "/healthz",
             "search": "/v1/index/search",
             "resolve": "/v1/agents/resolve",
+            "list": "/v1/agents/list",
             "docs": "/docs"
         }
     }
