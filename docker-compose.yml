@@ -11,12 +11,18 @@ services:
     volumes:
       - mongodb_data:/data/db
       - ./mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
-      - ./mongodb-keyfile:/opt/keyfile/mongodb-keyfile:ro
+      - ./mongodb-keyfile:/opt/keyfile/mongodb-keyfile
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password}
       MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-registry_master}
-    command: ["--replSet", "${REPLICA_SET_NAME:-rs0}", "--bind_ip_all", "--port", "27017", "--keyFile", "/opt/keyfile/mongodb-keyfile"]
+    command: |
+      bash -c '
+        cp /opt/keyfile/mongodb-keyfile /tmp/mongodb-keyfile
+        chmod 600 /tmp/mongodb-keyfile
+        chown mongodb:mongodb /tmp/mongodb-keyfile
+        exec mongod --replSet ${REPLICA_SET_NAME:-rs0} --bind_ip_all --port 27017 --keyFile /tmp/mongodb-keyfile
+      '
     networks:
       - registry-network
     healthcheck:
