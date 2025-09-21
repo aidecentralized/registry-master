@@ -21,7 +21,7 @@ services:
         cp /opt/keyfile/mongodb-keyfile /tmp/mongodb-keyfile
         chmod 600 /tmp/mongodb-keyfile
         chown mongodb:mongodb /tmp/mongodb-keyfile
-        exec mongod --replSet ${REPLICA_SET_NAME:-rs0} --bind_ip_all --port 27017 --keyFile /tmp/mongodb-keyfile
+        exec docker-entrypoint.sh mongod --replSet ${REPLICA_SET_NAME:-rs0} --bind_ip_all --port 27017 --keyFile /tmp/mongodb-keyfile
       '
     networks:
       - registry-network
