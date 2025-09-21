@@ -4,12 +4,14 @@ Database initialization script for Global Registry Master
 Creates indexes and optionally seeds initial data
 """
 
+import logging
 import os
 import sys
-import logging
 from datetime import datetime
-from database import RegistryDatabase
-from models import DirectAgentEntry, FederatedNamespaceEntry, EntryType
+
+from app.core.config import get_settings
+from app.db.repository import RegistryRepository
+from app.models.registry import DirectAgentEntry, FederatedNamespaceEntry
 
 # Configure logging
 logging.basicConfig(
@@ -79,14 +81,15 @@ def create_sample_data():
     return direct_agents, federated_namespaces
 
 
-def initialize_database(seed_data: bool = False):
+def initialize_database(seed_data: bool = False) -> bool:
     """Initialize the registry database with indexes and optional seed data"""
-    
+
     logger.info("Starting database initialization...")
-    
+
     # Create database connection
-    db = RegistryDatabase()
-    
+    settings = get_settings()
+    db = RegistryRepository(settings)
+
     if not db.connect():
         logger.error("Failed to connect to database")
         return False
