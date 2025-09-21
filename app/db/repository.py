@@ -1,50 +1,58 @@
-import os
 import logging
-from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pymongo import MongoClient, ASCENDING
+from typing import Any, Dict, List, Optional
+
+from pymongo import ASCENDING, MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
-from pymongo.errors import DuplicateKeyError, ConnectionFailure
-from models import DirectAgentEntry, FederatedNamespaceEntry, EntryType
+from pymongo.errors import ConnectionFailure, DuplicateKeyError
+
+from app.core.config import Settings
+from app.models.registry import DirectAgentEntry, EntryType, FederatedNamespaceEntry
 
 logger = logging.getLogger(__name__)
 
 
-class RegistryDatabase:
-    """MongoDB database component for Global Registry Master"""
-    
-    def __init__(self, connection_string: Optional[str] = None):
-        self.connection_string = connection_string or os.getenv(
-            'MONGODB_URI', 
-            'mongodb://localhost:27017'
-        )
-        self.database_name = os.getenv('MONGODB_DATABASE', 'registry_master')
-        self.collection_name = 'registry_master'
-        
+class RegistryRepository:
+    """MongoDB repository backing the Global Registry Master service."""
+
+    def __init__(self, settings: Settings):
+        self._settings = settings
+        self.collection_name = settings.mongodb_collection
+
         self._client: Optional[MongoClient] = None
         self._database: Optional[Database] = None
         self._collection: Optional[Collection] = None
-    
+
+    def is_connected(self) -> bool:
+        """Return whether the repository currently holds an active Mongo client."""
+        return self._client is not None and self._collection is not None
+
     def connect(self) -> bool:
         """Establish connection to MongoDB"""
         try:
-            self._client = MongoClient(self.connection_string)
+            self._client = MongoClient(self._settings.mongodb_uri)
             # Test connection
             self._client.admin.command('ping')
-            self._database = self._client[self.database_name]
+            self._database = self._client[self._settings.mongodb_database]
             self._collection = self._database[self.collection_name]
-            logger.info(f"Connected to MongoDB: {self.database_name}")
+            logger.info(f"Connected to MongoDB: {self._settings.mongodb_database}")
             return True
         except ConnectionFailure as e:
             logger.error(f"Failed to connect to MongoDB: {e}")
+            self._client = None
+            self._database = None
+            self._collection = None
             return False
-    
+
     def disconnect(self):
         """Close MongoDB connection"""
         if self._client:
             self._client.close()
             logger.info("Disconnected from MongoDB")
+        self._client = None
+        self._database = None
+        self._collection = None
     
     def create_indexes(self):
         """Create required indexes for optimal performance"""
@@ -87,7 +95,7 @@ class RegistryDatabase:
     def insert_direct_agent(self, agent: DirectAgentEntry) -> bool:
         """Insert a direct agent entry"""
         try:
-            result = self._collection.insert_one(agent.dict())
+            result = self._collection.insert_one(agent.model_dump(by_alias=True))
             logger.info(f"Inserted direct agent: {agent.agent_id}")
             return True
         except DuplicateKeyError:
@@ -100,7 +108,7 @@ class RegistryDatabase:
     def insert_federated_namespace(self, namespace: FederatedNamespaceEntry) -> bool:
         """Insert a federated namespace entry"""
         try:
-            result = self._collection.insert_one(namespace.dict())
+            result = self._collection.insert_one(namespace.model_dump(by_alias=True))
             logger.info(f"Inserted federated namespace: {namespace.namespace}")
             return True
         except DuplicateKeyError:

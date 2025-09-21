@@ -10,7 +10,7 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
-      - ./mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
       - ./mongodb-keyfile:/opt/keyfile/mongodb-keyfile
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-admin}
@@ -80,7 +80,7 @@ services:
       MONGODB_URI: ${MONGODB_URI}
       MONGODB_DATABASE: ${MONGO_DATABASE:-registry_master}
       SEED_DATA: "true"
-    command: ["python", "init_db.py", "--seed"]
+    command: ["python", "-m", "scripts.init_db", "--seed"]
     depends_on:
       - mongodb
     networks:
