@@ -7,7 +7,34 @@ A distributed agent registry service that acts as the entry point for finding an
 - **MongoDB**: Stores registry data with global replication
 - **FastAPI**: REST API service for agent discovery and management  
 - **Redis**: Caching layer (optional)
+- **Kafka**: Event streaming for change notifications (MongoDB change streams → Kafka)
 - **Docker**: Containerized deployment
+
+## Kafka Integration
+
+The registry service automatically publishes change events to Kafka when MongoDB operations occur. This enables real-time synchronization across distributed registry nodes.
+
+### Features
+- **Primary Node Detection**: Only the MongoDB primary node publishes to Kafka
+- **Change Stream Monitoring**: Captures all MongoDB operations (insert, update, delete)
+- **Event Publishing**: Publishes structured events to configurable Kafka topic
+- **Automatic Failover**: If primary changes, the new primary takes over publishing
+
+### Event Format
+```json
+{
+  "timestamp": "2025-09-22T12:00:00Z",
+  "operation": "insert|update|delete",
+  "document_id": "agent:nanda:uuid-1111",
+  "document": { /* full document data */ },
+  "source": "registry-master"
+}
+```
+
+### Configuration
+- `KAFKA_BOOTSTRAP_SERVERS`: Kafka broker addresses (default: 34.229.1.253:9092)
+- `KAFKA_TOPIC`: Topic for publishing events (default: demo-topic)
+- `KAFKA_ENABLED`: Enable/disable Kafka integration (default: true)
 
 ## API Endpoints
 

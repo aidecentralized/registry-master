@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import admin, public
-from app.api.dependencies import init_repository, shutdown_repository
+from app.api.dependencies import init_repository, shutdown_repository, init_kafka_services, shutdown_kafka_services
 from app.core.config import get_settings
 
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +38,7 @@ async def startup_event() -> None:
     settings = get_settings()
     try:
         init_repository(settings)
+        init_kafka_services(settings)
         logger.info("Registry service started successfully")
     except RuntimeError as exc:  # pylint: disable=broad-except
         logger.error("Failed to connect to database during startup: %s", exc)
@@ -47,6 +48,7 @@ async def startup_event() -> None:
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
     """Release resources during application shutdown."""
+    shutdown_kafka_services()
     shutdown_repository()
     logger.info("Registry service shutdown complete")
 

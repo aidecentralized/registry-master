@@ -29,21 +29,38 @@ class RegistryRepository:
         return self._client is not None and self._collection is not None
 
     def connect(self) -> bool:
-        """Establish connection to MongoDB"""
-        try:
-            self._client = MongoClient(self._settings.mongodb_uri)
-            # Test connection
-            self._client.admin.command('ping')
-            self._database = self._client[self._settings.mongodb_database]
-            self._collection = self._database[self.collection_name]
-            logger.info(f"Connected to MongoDB: {self._settings.mongodb_database}")
-            return True
-        except ConnectionFailure as e:
-            logger.error(f"Failed to connect to MongoDB: {e}")
-            self._client = None
-            self._database = None
-            self._collection = None
-            return False
+        """Establish connection to MongoDB with retry logic"""
+        import time
+        max_retries = 5
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                self._client = MongoClient(
+                    self._settings.mongodb_uri,
+                    serverSelectionTimeoutMS=5000,  # 5 second timeout
+                    connectTimeoutMS=5000
+                )
+                # Test connection
+                self._client.admin.command('ping')
+                self._database = self._client[self._settings.mongodb_database]
+                self._collection = self._database[self.collection_name]
+                logger.info(f"Connected to MongoDB: {self._settings.mongodb_database}")
+                return True
+            except ConnectionFailure as e:
+                logger.warning(f"MongoDB connection attempt {attempt + 1}/{max_retries} failed: {e}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 10)  # Exponential backoff, max 10s
+                else:
+                    logger.error(f"All MongoDB connection attempts failed")
+                
+                self._client = None
+                self._database = None
+                self._collection = None
+        
+        return False
 
     def disconnect(self):
         """Close MongoDB connection"""
